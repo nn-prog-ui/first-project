@@ -1,7 +1,7 @@
-import { Application, CategoryInfo, ApplicationCategory, ApplicationTarget } from './types'
+// 型定義はコメントとして残します
 
 // カテゴリ情報
-export const categories: CategoryInfo[] = [
+export const categories = [
   // 個人向けカテゴリ
   { id: 'marriage', name: '結婚関連', description: '婚姻届、結婚祝い金など', icon: '💑', target: 'individual' },
   { id: 'moving', name: '引越し関連', description: '転入・転出届、住民票など', icon: '🏠', target: 'individual' },
@@ -26,7 +26,7 @@ export const categories: CategoryInfo[] = [
 ]
 
 // 申請データ
-export const applications: Application[] = [
+export const applications = [
   // 個人向け申請（既存データ）
   {
     id: 'marriage-001',
@@ -472,8 +472,8 @@ export const applications: Application[] = [
 ]
 
 // カテゴリ別の申請数を取得
-export function getApplicationCountByCategory(): Record<ApplicationCategory, number> {
-  const counts: Record<ApplicationCategory, number> = {
+export function getApplicationCountByCategory() {
+  const counts = {
     marriage: 0, moving: 0, birth: 0, elderly: 0, disability: 0,
     employment: 0, housing: 0, medical: 0, other: 0,
     startup: 0, 'employment-support': 0, training: 0, innovation: 0, 
@@ -488,17 +488,17 @@ export function getApplicationCountByCategory(): Record<ApplicationCategory, num
 }
 
 // カテゴリIDから名前を取得
-export function getCategoryName(categoryId: ApplicationCategory): string {
+export function getCategoryName(categoryId) {
   const category = categories.find(c => c.id === categoryId)
   return category ? category.name : 'その他'
 }
 
 // 対象別にカテゴリを取得
-export function getCategoriesByTarget(target: ApplicationTarget): CategoryInfo[] {
+export function getCategoriesByTarget(target) {
   return categories.filter(cat => cat.target === target)
 }
 
 // 対象別に申請を取得
-export function getApplicationsByTarget(target: ApplicationTarget): Application[] {
+export function getApplicationsByTarget(target) {
   return applications.filter(app => app.target === target)
 }
