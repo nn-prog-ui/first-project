@@ -27,8 +27,12 @@ logs/
 *.tar.gz
 *.zip
 
-# Cloudflare
+# Deployment
 .wrangler/
+dist/
+
+# Render
+.render/
 
 # IDE
 .vscode/
