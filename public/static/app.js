@@ -73,16 +73,29 @@ async function loadApplications(filters = {}) {
     
     const response = await fetch(`/api/applications?${params}`);
     if (!response.ok) throw new Error('申請データの取得に失敗');
-    const applications = await response.json();
+    const fetchedApplications = await response.json();
     
-    if (!filters || Object.keys(filters).length === 0) {
-      allApplications = applications;
+    // 全データを常に保持（フィルタなしの場合）
+    if (!filters || Object.keys(filters).length === 0 || (filters.target && Object.keys(filters).length === 1)) {
+      allApplications = fetchedApplications;
     }
     
-    return applications;
+    return fetchedApplications;
   } catch (error) {
     console.error('申請データ取得エラー:', error);
     throw error;
+  }
+}
+
+// 全申請データをロード（カテゴリ件数計算用）
+async function loadAllApplicationsForTarget(target) {
+  try {
+    const response = await fetch(`/api/applications?target=${target}`);
+    if (!response.ok) throw new Error('全申請データの取得に失敗');
+    return await response.json();
+  } catch (error) {
+    console.error('全申請データ取得エラー:', error);
+    return [];
   }
 }
 
@@ -191,7 +204,7 @@ function getCategoryCount() {
   return count;
 }
 
-// この関数は後で定義された新しいrenderApplications関数に置き換えられました
+
 
 // ローディング表示
 function showLoading() {
@@ -239,6 +252,10 @@ async function switchTarget(target) {
   // 検索入力をクリア
   const searchInput = document.getElementById('searchInput');
   searchInput.value = '';
+  
+  // カテゴリフィルターもクリア
+  const categoryFilter = document.getElementById('categoryFilter');
+  categoryFilter.value = '';
   
   try {
     showLoading();
