@@ -1,7 +1,9 @@
 // グローバル変数
 let allApplications = [];
 let allCategories = [];
+let currentTarget = 'individual'; // 'individual' or 'corporate'
 let currentFilters = {
+  target: 'individual',
   category: '',
   keyword: '',
   hasDeadline: false,
@@ -15,16 +17,20 @@ document.addEventListener('DOMContentLoaded', function() {
 
 async function initializeApp() {
   try {
+    // 初期ターゲットを設定
+    currentFilters.target = currentTarget;
+    
     // カテゴリと申請データを取得
     await Promise.all([
-      loadCategories(),
-      loadApplications()
+      loadCategories(currentTarget),
+      loadApplications({ target: currentTarget })
     ]);
     
     // UI要素のイベントリスナーを設定
     setupEventListeners();
     
     // 初期表示
+    updateUI();
     renderCategories();
     renderApplications(allApplications);
     
@@ -35,14 +41,16 @@ async function initializeApp() {
 }
 
 // カテゴリデータを取得
-async function loadCategories() {
+async function loadCategories(target = 'individual') {
   try {
-    const response = await fetch('/api/categories');
+    const response = await fetch(`/api/categories?target=${target}`);
     if (!response.ok) throw new Error('カテゴリデータの取得に失敗');
     allCategories = await response.json();
     
-    // セレクトボックスにオプションを追加
+    // セレクトボックスをクリアして再構築
     const categorySelect = document.getElementById('categoryFilter');
+    categorySelect.innerHTML = '<option value="">すべてのカテゴリ</option>';
+    
     allCategories.forEach(category => {
       const option = document.createElement('option');
       option.value = category.id;
@@ -83,6 +91,12 @@ function setupEventListeners() {
   const searchInput = document.getElementById('searchInput');
   const categoryFilter = document.getElementById('categoryFilter');
   const searchBtn = document.getElementById('searchBtn');
+  const individualTab = document.getElementById('individualTab');
+  const corporateTab = document.getElementById('corporateTab');
+  
+  // ターゲット切り替え
+  individualTab.addEventListener('click', () => switchTarget('individual'));
+  corporateTab.addEventListener('click', () => switchTarget('corporate'));
   
   // 検索ボタンクリック
   searchBtn.addEventListener('click', handleSearch);
@@ -104,6 +118,7 @@ async function handleSearch() {
   const categoryFilter = document.getElementById('categoryFilter');
   
   currentFilters = {
+    target: currentTarget,
     keyword: searchInput.value.trim(),
     category: categoryFilter.value,
     hasDeadline: false,
@@ -127,6 +142,7 @@ async function filterByCategory(categoryId) {
   categoryFilter.value = categoryId;
   
   currentFilters.category = categoryId;
+  currentFilters.target = currentTarget;
   
   try {
     showLoading();
@@ -175,87 +191,7 @@ function getCategoryCount() {
   return count;
 }
 
-// 申請リストの表示
-function renderApplications(applications) {
-  const container = document.getElementById('applicationsList');
-  if (!container) return;
-  
-  if (applications.length === 0) {
-    container.innerHTML = `
-      <div class="text-center py-8">
-        <div class="text-gray-400 text-4xl mb-4">🔍</div>
-        <h3 class="text-lg font-semibold text-gray-600 mb-2">該当する申請が見つかりません</h3>
-        <p class="text-gray-500">検索条件を変更して再度お試しください。</p>
-      </div>
-    `;
-    return;
-  }
-  
-  container.innerHTML = applications.map(app => {
-    const categoryInfo = allCategories.find(cat => cat.id === app.category);
-    const categoryName = categoryInfo ? categoryInfo.name : 'その他';
-    const categoryIcon = categoryInfo ? categoryInfo.icon : '📋';
-    
-    return `
-      <div class="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow duration-200">
-        <div class="flex justify-between items-start mb-3">
-          <h3 class="text-lg font-semibold text-gray-800">
-            <a href="/application/${app.id}" class="hover:text-blue-600 transition-colors">
-              ${app.title}
-            </a>
-          </h3>
-          <span class="bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded-full shrink-0 ml-2">
-            ${categoryIcon} ${categoryName}
-          </span>
-        </div>
-        
-        <p class="text-gray-600 mb-4 leading-relaxed">${app.description}</p>
-        
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-          ${app.amount ? `
-            <div class="flex items-center">
-              <span class="text-green-600 mr-2">💰</span>
-              <div>
-                <div class="text-xs text-gray-500">支給額・金額</div>
-                <div class="font-semibold text-green-600">${app.amount}</div>
-              </div>
-            </div>
-          ` : ''}
-          
-          ${app.deadline ? `
-            <div class="flex items-center">
-              <span class="text-red-600 mr-2">⏰</span>
-              <div>
-                <div class="text-xs text-gray-500">提出期限</div>
-                <div class="font-semibold text-red-600">${app.deadline}</div>
-              </div>
-            </div>
-          ` : ''}
-          
-          <div class="flex items-center">
-            <span class="text-blue-600 mr-2">🏢</span>
-            <div>
-              <div class="text-xs text-gray-500">提出先</div>
-              <div class="font-semibold">${app.location}</div>
-            </div>
-          </div>
-        </div>
-        
-        <div class="flex justify-between items-center pt-4 border-t border-gray-100">
-          <div class="text-sm text-gray-500">
-            必要書類: ${app.requiredDocuments.length}点
-          </div>
-          <a 
-            href="/application/${app.id}" 
-            class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-          >
-            詳細を見る
-          </a>
-        </div>
-      </div>
-    `;
-  }).join('');
-}
+// この関数は後で定義された新しいrenderApplications関数に置き換えられました
 
 // ローディング表示
 function showLoading() {
@@ -287,6 +223,161 @@ function showError(message) {
       <p class="text-gray-600">${message}</p>
     </div>
   `;
+}
+
+// ターゲット切り替え処理
+async function switchTarget(target) {
+  if (currentTarget === target) return;
+  
+  currentTarget = target;
+  currentFilters.target = target;
+  currentFilters.category = ''; // カテゴリをリセット
+  
+  // UI更新
+  updateUI();
+  
+  // 検索入力をクリア
+  const searchInput = document.getElementById('searchInput');
+  searchInput.value = '';
+  
+  try {
+    showLoading();
+    
+    // カテゴリと申請データを再読み込み
+    await Promise.all([
+      loadCategories(target),
+      loadApplications({ target })
+    ]);
+    
+    // 表示更新
+    renderCategories();
+    renderApplications(allApplications);
+    
+  } catch (error) {
+    showError('データの読み込みに失敗しました。');
+  } finally {
+    hideLoading();
+  }
+}
+
+// UI要素の更新
+function updateUI() {
+  const individualTab = document.getElementById('individualTab');
+  const corporateTab = document.getElementById('corporateTab');
+  const searchInput = document.getElementById('searchInput');
+  const searchTitle = document.getElementById('searchTitle');
+  const applicationsTitle = document.getElementById('applicationsTitle');
+  
+  // タブの見た目を更新
+  if (currentTarget === 'individual') {
+    individualTab.className = 'px-4 py-2 rounded-md text-sm font-medium transition-colors bg-white text-blue-600';
+    corporateTab.className = 'px-4 py-2 rounded-md text-sm font-medium transition-colors text-white hover:bg-blue-400';
+    
+    searchInput.placeholder = 'キーワードで検索（例：結婚、引越し、出産）';
+    searchTitle.textContent = '手続きを探す';
+    applicationsTitle.textContent = '申請・手続き一覧';
+  } else {
+    corporateTab.className = 'px-4 py-2 rounded-md text-sm font-medium transition-colors bg-white text-blue-600';
+    individualTab.className = 'px-4 py-2 rounded-md text-sm font-medium transition-colors text-white hover:bg-blue-400';
+    
+    searchInput.placeholder = 'キーワードで検索（例：助成金、補助金、創業）';
+    searchTitle.textContent = '助成金を探す';
+    applicationsTitle.textContent = '助成金・補助金一覧';
+  }
+}
+
+// 申請リストの表示（法人向け対応）
+function renderApplications(applications) {
+  const container = document.getElementById('applicationsList');
+  if (!container) return;
+  
+  if (applications.length === 0) {
+    const emptyMessage = currentTarget === 'corporate' 
+      ? '該当する助成金が見つかりません' 
+      : '該当する申請が見つかりません';
+    
+    container.innerHTML = `
+      <div class="text-center py-8">
+        <div class="text-gray-400 text-4xl mb-4">🔍</div>
+        <h3 class="text-lg font-semibold text-gray-600 mb-2">${emptyMessage}</h3>
+        <p class="text-gray-500">検索条件を変更して再度お試しください。</p>
+      </div>
+    `;
+    return;
+  }
+  
+  container.innerHTML = applications.map(app => {
+    const categoryInfo = allCategories.find(cat => cat.id === app.category);
+    const categoryName = categoryInfo ? categoryInfo.name : 'その他';
+    const categoryIcon = categoryInfo ? categoryInfo.icon : '📋';
+    
+    // 法人向けか個人向けかでスタイルを変える
+    const targetBadge = app.target === 'corporate' 
+      ? '<span class="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded-full ml-2">🏢 法人向け</span>'
+      : '<span class="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full ml-2">👤 個人向け</span>';
+    
+    return `
+      <div class="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow duration-200">
+        <div class="flex justify-between items-start mb-3">
+          <h3 class="text-lg font-semibold text-gray-800">
+            <a href="/application/${app.id}" class="hover:text-blue-600 transition-colors">
+              ${app.title}
+            </a>
+          </h3>
+          <div class="shrink-0 ml-2">
+            <span class="bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded-full">
+              ${categoryIcon} ${categoryName}
+            </span>
+            ${targetBadge}
+          </div>
+        </div>
+        
+        <p class="text-gray-600 mb-4 leading-relaxed">${app.description}</p>
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          ${app.amount ? `
+            <div class="flex items-center">
+              <span class="text-green-600 mr-2">💰</span>
+              <div>
+                <div class="text-xs text-gray-500">${app.target === 'corporate' ? '助成金額' : '支給額・金額'}</div>
+                <div class="font-semibold text-green-600">${app.amount}</div>
+              </div>
+            </div>
+          ` : ''}
+          
+          ${app.deadline ? `
+            <div class="flex items-center">
+              <span class="text-red-600 mr-2">⏰</span>
+              <div>
+                <div class="text-xs text-gray-500">${app.target === 'corporate' ? '申請期限' : '提出期限'}</div>
+                <div class="font-semibold text-red-600">${app.deadline}</div>
+              </div>
+            </div>
+          ` : ''}
+          
+          <div class="flex items-center">
+            <span class="text-blue-600 mr-2">🏢</span>
+            <div>
+              <div class="text-xs text-gray-500">${app.target === 'corporate' ? '申請先' : '提出先'}</div>
+              <div class="font-semibold">${app.location}</div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="flex justify-between items-center pt-4 border-t border-gray-100">
+          <div class="text-sm text-gray-500">
+            必要書類: ${app.requiredDocuments.length}点
+          </div>
+          <a 
+            href="/application/${app.id}" 
+            class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+          >
+            詳細を見る
+          </a>
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 
 // ユーティリティ関数: スムーズスクロール

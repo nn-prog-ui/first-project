@@ -2,8 +2,8 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { serveStatic } from 'hono/cloudflare-workers'
 import { renderer } from './renderer'
-import { applications, categories, getCategoryName } from './data'
-import { SearchFilters } from './types'
+import { applications, categories, getCategoryName, getCategoriesByTarget, getApplicationsByTarget } from './data'
+import { SearchFilters, ApplicationTarget } from './types'
 
 const app = new Hono()
 
@@ -18,9 +18,14 @@ app.use(renderer)
 
 // API Routes
 app.get('/api/applications', (c) => {
-  const { category, keyword, hasDeadline, hasAmount } = c.req.query() as SearchFilters
+  const { target, category, keyword, hasDeadline, hasAmount } = c.req.query() as SearchFilters
   
   let filteredApps = [...applications]
+  
+  // Filter by target (individual/corporate)
+  if (target) {
+    filteredApps = filteredApps.filter(app => app.target === target)
+  }
   
   // Filter by category
   if (category) {
@@ -33,7 +38,8 @@ app.get('/api/applications', (c) => {
     filteredApps = filteredApps.filter(app => 
       app.title.toLowerCase().includes(searchTerm) ||
       app.description.toLowerCase().includes(searchTerm) ||
-      app.keywords.some(k => k.toLowerCase().includes(searchTerm))
+      app.keywords.some(k => k.toLowerCase().includes(searchTerm)) ||
+      (app.story && app.story.toLowerCase().includes(searchTerm))
     )
   }
   
@@ -62,6 +68,12 @@ app.get('/api/applications/:id', (c) => {
 })
 
 app.get('/api/categories', (c) => {
+  const { target } = c.req.query()
+  
+  if (target && (target === 'individual' || target === 'corporate')) {
+    return c.json(getCategoriesByTarget(target as ApplicationTarget))
+  }
+  
   return c.json(categories)
 })
 
@@ -75,7 +87,23 @@ app.get('/', (c) => {
             <span className="mr-3">🏛️</span>
             市役所申請ガイド
           </h1>
-          <p className="text-blue-100 mt-2">結婚・引越し・出産などの手続きを分かりやすくご案内</p>
+          <p className="text-blue-100 mt-2">個人・法人の申請・助成金手続きを分かりやすくご案内</p>
+          
+          {/* Target Toggle */}
+          <div className="mt-4 flex space-x-1 bg-blue-500 rounded-lg p-1 w-fit">
+            <button 
+              id="individualTab"
+              className="px-4 py-2 rounded-md text-sm font-medium transition-colors bg-white text-blue-600"
+            >
+              👤 個人向け
+            </button>
+            <button 
+              id="corporateTab"
+              className="px-4 py-2 rounded-md text-sm font-medium transition-colors text-white hover:bg-blue-400"
+            >
+              🏢 法人向け
+            </button>
+          </div>
         </div>
       </header>
 
@@ -84,13 +112,13 @@ app.get('/', (c) => {
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
           <h2 className="text-xl font-semibold mb-4 flex items-center">
             <span className="mr-2">🔍</span>
-            手続きを探す
+            <span id="searchTitle">手続きを探す</span>
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <input 
               type="text" 
               id="searchInput"
-              placeholder="キーワードで検索（例：結婚、引越し、出産）"
+              placeholder="キーワードで検索"
               className="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
             <select 
@@ -115,7 +143,7 @@ app.get('/', (c) => {
 
         {/* Applications List */}
         <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-semibold mb-6">申請・手続き一覧</h2>
+          <h2 className="text-xl font-semibold mb-6" id="applicationsTitle">申請・手続き一覧</h2>
           <div id="applicationsList" className="space-y-4">
             {/* Applications will be loaded by JavaScript */}
           </div>
@@ -155,9 +183,18 @@ app.get('/application/:id', (c) => {
             <a href="/" className="text-blue-200 hover:text-white">← トップページに戻る</a>
           </nav>
           <h1 className="text-2xl font-bold">{application.title}</h1>
-          <span className="bg-blue-500 px-3 py-1 rounded-full text-sm mt-2 inline-block">
-            {getCategoryName(application.category)}
-          </span>
+          <div className="flex items-center gap-2 mt-2">
+            <span className="bg-blue-500 px-3 py-1 rounded-full text-sm">
+              {getCategoryName(application.category)}
+            </span>
+            <span className={`px-3 py-1 rounded-full text-sm ${
+              application.target === 'corporate' 
+                ? 'bg-purple-500 text-white' 
+                : 'bg-green-500 text-white'
+            }`}>
+              {application.target === 'corporate' ? '🏢 法人向け' : '👤 個人向け'}
+            </span>
+          </div>
         </div>
       </header>
 
@@ -169,6 +206,34 @@ app.get('/application/:id', (c) => {
               <h2 className="text-xl font-semibold mb-4">📋 申請内容</h2>
               <p className="text-gray-700 leading-relaxed">{application.description}</p>
             </div>
+
+            {/* 法人向けのストーリー表示 */}
+            {application.story && (
+              <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-6 mb-6">
+                <h2 className="text-xl font-semibold mb-4 text-purple-800 flex items-center">
+                  <span className="mr-2">📝</span>
+                  活用事例・ストーリー
+                </h2>
+                <div className="text-gray-700 leading-relaxed whitespace-pre-line">
+                  {application.story}
+                </div>
+              </div>
+            )}
+
+            {/* 申請要件（法人向けのみ） */}
+            {application.eligibilityRequirements && application.eligibilityRequirements.length > 0 && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
+                <h2 className="text-xl font-semibold mb-4 text-blue-800">📊 申請要件</h2>
+                <ul className="space-y-2">
+                  {application.eligibilityRequirements.map((req, index) => (
+                    <li key={index} className="flex items-start">
+                      <span className="text-blue-600 mr-2 mt-1">•</span>
+                      <span className="text-blue-700">{req}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             <div className="bg-white rounded-lg shadow-md p-6 mb-6">
               <h2 className="text-xl font-semibold mb-4">📄 必要書類</h2>
